@@ -12,6 +12,7 @@
             --accent: #6366f1;
             --text: #e2e8f0;
             --text-dim: #94a3b8;
+            --success: #22c55e;
         }
         body {
             background: var(--bg);
@@ -49,19 +50,38 @@
             margin: 0 auto;
             width: 100%;
         }
-        .input-group {
+        .section-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
+            margin-bottom: 1rem;
+            display: block;
+        }
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid #ffffff05;
             margin-bottom: 2rem;
+        }
+        .input-group {
             display: flex;
             gap: 1rem;
         }
         input {
             flex: 1;
-            background: var(--card);
+            background: #1a1a1e;
             border: 1px solid #ffffff10;
             padding: 0.8rem 1.2rem;
             border-radius: 8px;
             color: white;
             font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus {
+            border-color: var(--accent);
         }
         button {
             background: var(--accent);
@@ -72,10 +92,16 @@
             cursor: pointer;
             font-weight: 600;
             transition: all 0.2s;
+            white-space: nowrap;
         }
         button:hover {
             opacity: 0.9;
             transform: translateY(-1px);
+        }
+        button:disabled {
+            background: var(--text-dim);
+            cursor: not-allowed;
+            transform: none;
         }
         .trace-container {
             display: flex;
@@ -126,8 +152,25 @@
             font-size: 0.75rem;
             background: #ffffff10;
         }
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--card);
+            border: 1px solid var(--accent);
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: none;
+            animation: slideUp 0.3s ease-out;
+            z-index: 100;
+        }
         @keyframes slideIn {
             from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
     </style>
@@ -139,18 +182,63 @@
     </header>
 
     <main>
-        <div class="input-group">
-            <input type="text" id="jobId" placeholder="Enter Job ID to watch...">
-            <button onclick="startWatching()">WATCH TRACE</button>
-        </div>
+        <section class="card">
+            <span class="section-title">1. Submit a Query</span>
+            <div class="input-group">
+                <input type="text" id="queryInput" placeholder="Ask Mega AI anything (e.g. 'What is the current stock price of Apple?')">
+                <button id="submitBtn" onclick="submitQuery()">RUN AGENTS</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <span class="section-title">2. Watch Trace</span>
+            <div class="input-group">
+                <input type="text" id="jobId" placeholder="Enter Job ID to watch...">
+                <button onclick="startWatching()">WATCH TRACE</button>
+            </div>
+        </section>
 
         <div id="trace" class="trace-container">
             <!-- Events will appear here -->
         </div>
     </main>
 
+    <div id="toast" class="toast"></div>
+
     <script>
         let eventSource = null;
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 5000);
+        }
+
+        async function submitQuery() {
+            const query = document.getElementById('queryInput').value;
+            if (!query) return;
+
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.innerText = 'SUBMITTING...';
+
+            try {
+                const res = await fetch(`/submit?query=${encodeURIComponent(query)}`, { method: 'POST' });
+                const data = await res.json();
+                
+                if (data.job_id) {
+                    showToast(`Job submitted! ID: ${data.job_id}`);
+                    document.getElementById('jobId').value = data.job_id;
+                    startWatching(); // Automatically start watching
+                }
+            } catch (e) {
+                showToast(`Error: ${e.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'RUN AGENTS';
+            }
+        }
 
         function startWatching() {
             const jobId = document.getElementById('jobId').value;
