@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mega AI | Real-Time Execution Trace</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0c;
+            --card: #141417;
+            --accent: #6366f1;
+            --text: #e2e8f0;
+            --text-dim: #94a3b8;
+        }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Outfit', sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid #ffffff10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(10, 10, 12, 0.8);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .logo {
+            font-weight: 600;
+            font-size: 1.5rem;
+            background: linear-gradient(45deg, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        main {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+            max-width: 1000px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .input-group {
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+        }
+        input {
+            flex: 1;
+            background: var(--card);
+            border: 1px solid #ffffff10;
+            padding: 0.8rem 1.2rem;
+            border-radius: 8px;
+            color: white;
+            font-family: inherit;
+        }
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        .trace-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .event {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid #ffffff05;
+            animation: slideIn 0.3s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+        .event::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--accent);
+        }
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        .agent-id {
+            color: var(--accent);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .timestamp {
+            color: var(--text-dim);
+        }
+        .content {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+        .badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            background: #ffffff10;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">MEGA AI OBSERVABILITY</div>
+        <div id="status" class="badge">DISCONNECTED</div>
+    </header>
+
+    <main>
+        <div class="input-group">
+            <input type="text" id="jobId" placeholder="Enter Job ID to watch...">
+            <button onclick="startWatching()">WATCH TRACE</button>
+        </div>
+
+        <div id="trace" class="trace-container">
+            <!-- Events will appear here -->
+        </div>
+    </main>
+
+    <script>
+        let eventSource = null;
+
+        function startWatching() {
+            const jobId = document.getElementById('jobId').value;
+            if (!jobId) return;
+
+            if (eventSource) eventSource.close();
+            
+            document.getElementById('trace').innerHTML = '';
+            document.getElementById('status').innerText = 'CONNECTING...';
+            document.getElementById('status').style.background = '#eab30820';
+
+            eventSource = new EventSource(`/stream/${jobId}`);
+
+            eventSource.onopen = () => {
+                document.getElementById('status').innerText = 'CONNECTED';
+                document.getElementById('status').style.background = '#22c55e20';
+            };
+
+            eventSource.addEventListener('thought', addEvent);
+            eventSource.addEventListener('message', addEvent);
+            eventSource.addEventListener('tool_call', addEvent);
+            eventSource.addEventListener('error', addEvent);
+
+            eventSource.addEventListener('end', () => {
+                document.getElementById('status').innerText = 'FINISHED';
+                document.getElementById('status').style.background = '#6366f120';
+                eventSource.close();
+            });
+
+            eventSource.onerror = (e) => {
+                console.error(e);
+                document.getElementById('status').innerText = 'ERROR';
+                document.getElementById('status').style.background = '#ef444420';
+            };
+        }
+
+        function addEvent(e) {
+            const data = JSON.parse(e.data);
+            const container = document.getElementById('trace');
+            
+            const eventDiv = document.createElement('div');
+            eventDiv.className = 'event';
+            
+            let contentStr = typeof data.content === 'object' ? JSON.stringify(data.content, null, 2) : data.content;
+
+            eventDiv.innerHTML = `
+                <div class="event-header">
+                    <span class="agent-id">${data.agent} <span class="badge">${e.type}</span></span>
+                    <span class="timestamp">${new Date(data.timestamp).toLocaleTimeString()}</span>
+                </div>
+                <div class="content">${contentStr}</div>
+            `;
+            
+            container.appendChild(eventDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+    </script>
+</body>
+</html>
