@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, ForeignKey, Boolean, Text
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 import datetime
 import os
@@ -8,8 +8,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Use SQLite for serverless (Vercel) or PostgreSQL for Docker
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./mega_ai.db")
+# Use /tmp for SQLite on Vercel (read-only filesystem except /tmp)
+# Use DATABASE_URL env var for PostgreSQL in Docker
+_default_db = "sqlite:////tmp/mega_ai.db" if os.path.exists("/tmp") else "sqlite:///./mega_ai.db"
+DATABASE_URL = os.getenv("DATABASE_URL", _default_db)
 
 # Handle SQLite connect args
 connect_args = {}
